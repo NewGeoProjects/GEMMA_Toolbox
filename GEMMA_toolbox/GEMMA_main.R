@@ -45,8 +45,8 @@ ui <- fluidPage(
              ## DATASET PANEL===================================================
              tabPanel("DATASET", 
                       tabsetPanel(
-                        # ENVIRONMENTAL VARIABLES sub-panel_____________________
-                        tabPanel("Dependent variables - Environmental variables", 
+                        # Data matrix A: Response variablessub-panel____________
+                        tabPanel("Data matrix A: Response variables", 
                                  fluidRow(
                                    column(2, div(
                                      style = "max-height: 60vh; overflow-y: scroll;", 
@@ -60,7 +60,7 @@ ui <- fluidPage(
                         ),#end tabpanel--
                         
                         # PREDICTORS sub-panel__________________________________
-                        tabPanel("Indipendent variables - Predictors", 
+                        tabPanel("Data Matrix B: Explanatory variables", 
                                  fluidRow(
                                    column(2, div(
                                      style = "max-height: 60vh; overflow-y: scroll;", 
@@ -350,19 +350,38 @@ server <- function(input, output, session) {
   ##############################################################################
   ##                          PANEL: DATASET
   ##############################################################################
-  ## Read dataframe=============================================================
+  ## Read dataframe =============================================================
   file_data <- reactive({
     req(input$file)
-    # read CSV
-    env.r <- read.delim(input$file$datapath, row.names = 1)
+    
+    # Determine file extension
+    file_ext <- tools::file_ext(input$file$name)
+    
+    # Conditional reading based on file type
+    if (file_ext == "csv") {
+      env.r <- read.csv(input$file$datapath, row.names = 1)
+    } else if (file_ext == "txt") {
+      env.r <- read.delim(input$file$datapath, row.names = 1)
+    } else if (file_ext == "xlsx") {
+      library(readxl)
+      env.r <- read_excel(input$file$datapath)
+      env.r <- as.data.frame(env.r) # Convert to data frame if read as tibble
+      rownames(env.r) <- env.r[, 1] # Assuming first column is row names
+      env.r <- env.r[, -1]          # Remove the first column after setting row names
+    } else {
+      stop("Unsupported file type. Please upload a .csv, .txt, or .xlsx file.")
+    }
+    
     # NA remove
     env <- na.omit(env.r)
-    # identify and print the removed row names
+    
+    # Identify and print the removed row names
     removed_row_names <- setdiff(rownames(env.r), rownames(env))
     cat("Rows removed for N.A.:", paste(removed_row_names, collapse = ", "), "\n")
+    
     ## RETURN
     env
-    })
+  })
   ## UPDATE GENERAL checkboxes==================================================
   observe({
     data <- file_data()
@@ -381,7 +400,7 @@ server <- function(input, output, session) {
                              choices = valid_columns_proxies,
                              selected = selected_columns_proxies)
   })
-  ## SELECT MOLECULES===========================================================
+  ## SELECT MATRIX A VARIABLES==================================================
   output$file_table_molecules <- renderDataTable({
     data <- file_data()
     selected_columns <- input$show_columns_molecules
@@ -398,7 +417,7 @@ server <- function(input, output, session) {
     data <- data[, c("Id", selected_columns), drop = FALSE]
     return(data)
   })
-  ## SELECT PROXIES=============================================================
+  ## SELECT MATRIX B VARIABLES==================================================
   output$file_table_proxies <- renderDataTable({
     data <- file_data()
     selected_columns <- input$show_columns_proxies
